@@ -5,7 +5,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
@@ -36,8 +35,7 @@ module Cardano.Ledger.Conway.TxBody (
     ctbScriptIntegrityHash,
     ctbAdHash,
     ctbTxNetworkId,
-    ctbVotingProcedures,
-    ctbProposalProcedures
+    ctbGovProcs
   ),
 ) where
 
@@ -76,10 +74,11 @@ import Cardano.Ledger.Binary.Coders (
 import Cardano.Ledger.Coin (Coin (..))
 import Cardano.Ledger.Conway.Core (
   ConwayEraTxBody (..),
+  ShelleyEraDCert,
  )
 import Cardano.Ledger.Conway.Delegation.Certificates (ConwayDCert)
 import Cardano.Ledger.Conway.Era (ConwayEra)
-import Cardano.Ledger.Conway.Governance (ProposalProcedure, VotingProcedure)
+import Cardano.Ledger.Conway.Governance (GovernanceProcedure)
 import Cardano.Ledger.Conway.PParams ()
 import Cardano.Ledger.Conway.Scripts ()
 import Cardano.Ledger.Conway.TxOut ()
@@ -126,7 +125,7 @@ data ConwayTxBodyRaw era = ConwayTxBodyRaw
   , ctbrOutputs :: !(StrictSeq (Sized (TxOut era)))
   , ctbrCollateralReturn :: !(StrictMaybe (Sized (TxOut era)))
   , ctbrTotalCollateral :: !(StrictMaybe Coin)
-  , ctbrCerts :: !(StrictSeq (ConwayDCert (EraCrypto era)))
+  , ctbrCerts :: !(StrictSeq (ConwayDCert era))
   , ctbrWithdrawals :: !(Withdrawals (EraCrypto era))
   , ctbrTxfee :: !Coin
   , ctbrVldt :: !ValidityInterval
@@ -135,8 +134,7 @@ data ConwayTxBodyRaw era = ConwayTxBodyRaw
   , ctbrScriptIntegrityHash :: !(StrictMaybe (ScriptIntegrityHash (EraCrypto era)))
   , ctbrAuxDataHash :: !(StrictMaybe (AuxiliaryDataHash (EraCrypto era)))
   , ctbrTxNetworkId :: !(StrictMaybe Network)
-  , ctbrVotingProcedures :: !(StrictSeq (VotingProcedure era))
-  , ctbrProposalProcedures :: !(StrictSeq (ProposalProcedure era))
+  , ctbrGovProcs :: !(StrictSeq (GovernanceProcedure era))
   }
   deriving (Generic, Typeable)
 
@@ -189,8 +187,7 @@ instance
       bodyFields 16 = ofield (\x tx -> tx {ctbrCollateralReturn = x}) From
       bodyFields 17 = ofield (\x tx -> tx {ctbrTotalCollateral = x}) From
       bodyFields 18 = field (\x tx -> tx {ctbrReferenceInputs = x}) From
-      bodyFields 19 = field (\x tx -> tx {ctbrVotingProcedures = x}) From
-      bodyFields 20 = field (\x tx -> tx {ctbrProposalProcedures = x}) From
+      bodyFields 19 = field (\x tx -> tx {ctbrGovProcs = x}) From
       bodyFields n = field (\_ t -> t) (Invalid n)
       requiredFields :: [(Word, String)]
       requiredFields =
@@ -257,7 +254,6 @@ basicConwayTxBodyRaw =
     SNothing
     SNothing
     mempty
-    mempty
 
 instance Crypto c => EraTxBody (ConwayEra c) where
   {-# SPECIALIZE instance EraTxBody (ConwayEra StandardCrypto) #-}
@@ -293,7 +289,15 @@ instance Crypto c => EraTxBody (ConwayEra c) where
   withdrawalsTxBodyL = lensMemoRawType ctbrWithdrawals (\txb x -> txb {ctbrWithdrawals = x})
   {-# INLINE withdrawalsTxBodyL #-}
 
-instance Crypto c => ShelleyEraTxBody (ConwayEra c) where
+  certsTxBodyL = notSupportedInThisEraL
+  {-# INLINE certsTxBodyL #-}
+
+instance
+  ( Crypto c
+  , ShelleyEraDCert (ConwayEra c)
+  ) =>
+  ShelleyEraTxBody (ConwayEra c)
+  where
   {-# SPECIALIZE instance ShelleyEraTxBody (ConwayEra StandardCrypto) #-}
 
   ttlTxBodyL = notSupportedInThisEraL
@@ -303,12 +307,6 @@ instance Crypto c => ShelleyEraTxBody (ConwayEra c) where
   {-# INLINE updateTxBodyL #-}
 
   updateTxBodyG = to (const SNothing)
-
-  certsTxBodyL = notSupportedInThisEraL
-  {-# INLINE certsTxBodyL #-}
-
-  -- TODO Fix this once DCert is a type family
-  certsTxBodyG = undefined
 
 instance Crypto c => AllegraEraTxBody (ConwayEra c) where
   {-# SPECIALIZE instance AllegraEraTxBody (ConwayEra StandardCrypto) #-}
@@ -371,10 +369,7 @@ instance Crypto c => BabbageEraTxBody (ConwayEra c) where
   {-# INLINE allSizedOutputsTxBodyF #-}
 
 instance Crypto c => ConwayEraTxBody (ConwayEra c) where
-  votingProceduresTxBodyL =
-    lensMemoRawType ctbrVotingProcedures (\txb x -> txb {ctbrVotingProcedures = x})
-  proposalProceduresTxBodyL =
-    lensMemoRawType ctbrProposalProcedures (\txb x -> txb {ctbrProposalProcedures = x})
+  govProcsTxBodyL = lensMemoRawType ctbrGovProcs (\txb x -> txb {ctbrGovProcs = x})
   conwayCertsTxBodyL = lensMemoRawType ctbrCerts (\txb x -> txb {ctbrCerts = x})
 
 pattern ConwayTxBody ::
@@ -385,7 +380,7 @@ pattern ConwayTxBody ::
   StrictSeq (Sized (TxOut era)) ->
   StrictMaybe (Sized (TxOut era)) ->
   StrictMaybe Coin ->
-  StrictSeq (ConwayDCert (EraCrypto era)) ->
+  StrictSeq (ConwayDCert era) ->
   Withdrawals (EraCrypto era) ->
   Coin ->
   ValidityInterval ->
@@ -394,8 +389,7 @@ pattern ConwayTxBody ::
   StrictMaybe (ScriptIntegrityHash (EraCrypto era)) ->
   StrictMaybe (AuxiliaryDataHash (EraCrypto era)) ->
   StrictMaybe Network ->
-  StrictSeq (VotingProcedure era) ->
-  StrictSeq (ProposalProcedure era) ->
+  StrictSeq (GovernanceProcedure era) ->
   ConwayTxBody era
 pattern ConwayTxBody
   { ctbSpendInputs
@@ -413,8 +407,7 @@ pattern ConwayTxBody
   , ctbScriptIntegrityHash
   , ctbAdHash
   , ctbTxNetworkId
-  , ctbVotingProcedures
-  , ctbProposalProcedures
+  , ctbGovProcs
   } <-
   ( getMemoRawType ->
       ConwayTxBodyRaw
@@ -433,8 +426,7 @@ pattern ConwayTxBody
         , ctbrScriptIntegrityHash = ctbScriptIntegrityHash
         , ctbrAuxDataHash = ctbAdHash
         , ctbrTxNetworkId = ctbTxNetworkId
-        , ctbrVotingProcedures = ctbVotingProcedures
-        , ctbrProposalProcedures = ctbProposalProcedures
+        , ctbrGovProcs = ctbGovProcs
         }
     )
   where
@@ -454,8 +446,7 @@ pattern ConwayTxBody
       scriptIntegrityHashX
       adHashX
       txnetworkidX
-      votingProcedures
-      proposalProcedures =
+      govActions =
         mkMemoized $
           ConwayTxBodyRaw
             inputsX
@@ -473,8 +464,7 @@ pattern ConwayTxBody
             scriptIntegrityHashX
             adHashX
             txnetworkidX
-            votingProcedures
-            proposalProcedures
+            govActions
 
 {-# COMPLETE ConwayTxBody #-}
 
@@ -489,8 +479,8 @@ encodeTxBodyRaw ::
 encodeTxBodyRaw ConwayTxBodyRaw {..} =
   let ValidityInterval bot top = ctbrVldt
    in Keyed
-        ( \i ifee ri o cr tc f t c w b rsh mi sh ah ni ga ->
-            ConwayTxBodyRaw i ifee ri o cr tc c w f (ValidityInterval b t) rsh mi sh ah ni ga
+        ( \i ifee ri o cr tc f t c w b rsh mi sh ah gp ->
+            ConwayTxBodyRaw i ifee ri o cr tc c w f (ValidityInterval b t) rsh mi sh ah gp
         )
         !> Key 0 (To ctbrSpendInputs)
         !> Omit null (Key 13 (To ctbrCollateralInputs))
@@ -508,8 +498,7 @@ encodeTxBodyRaw ConwayTxBodyRaw {..} =
         !> encodeKeyedStrictMaybe 11 ctbrScriptIntegrityHash
         !> encodeKeyedStrictMaybe 7 ctbrAuxDataHash
         !> encodeKeyedStrictMaybe 15 ctbrTxNetworkId
-        !> Omit null (Key 19 (To ctbrVotingProcedures))
-        !> Omit null (Key 20 (To ctbrProposalProcedures))
+        !> Omit null (Key 19 (To ctbrGovProcs))
 
 instance ConwayEraTxBody era => EncCBOR (ConwayTxBodyRaw era) where
   encCBOR = encode . encodeTxBodyRaw

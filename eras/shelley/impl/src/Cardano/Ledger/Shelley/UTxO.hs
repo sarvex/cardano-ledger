@@ -1,16 +1,11 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -38,8 +33,7 @@ import Cardano.Ledger.Core
 import Cardano.Ledger.Credential (Credential (..), StakeCredential)
 import Cardano.Ledger.Crypto (Crypto)
 import Cardano.Ledger.Keys (KeyHash (..), KeyRole (..))
-import Cardano.Ledger.Shelley.Delegation.Certificates (
-  DCert (..),
+import Cardano.Ledger.Shelley.Delegation (
   requiresVKeyWitness,
  )
 import Cardano.Ledger.Shelley.Era (ShelleyEra)
@@ -52,9 +46,6 @@ import Cardano.Ledger.Shelley.TxBody (
   ShelleyEraTxBody (..),
   Withdrawals (..),
   getRwdCred,
-  pattern DeRegKey,
-  pattern Delegate,
-  pattern Delegation,
  )
 import Cardano.Ledger.TxIn (TxIn (..))
 import Cardano.Ledger.UTxO as UTxO
@@ -68,7 +59,7 @@ import Lens.Micro ((^.))
 txup :: (EraTx era, ShelleyEraTxBody era, ProtVerAtMost era 8) => Tx era -> Maybe (Update era)
 txup tx = strictMaybeToMaybe (tx ^. bodyTxL . updateTxBodyL)
 
-scriptStakeCred :: DCert c -> Maybe (ScriptHash c)
+scriptStakeCred :: EraDCert era => DCert era -> Maybe (ScriptHash (EraCrypto era))
 scriptStakeCred (DCertDeleg (DeRegKey (KeyHashObj _))) = Nothing
 scriptStakeCred (DCertDeleg (DeRegKey (ScriptHashObj hs))) = Just hs
 scriptStakeCred (DCertDeleg (Delegate (Delegation (KeyHashObj _) _))) = Nothing
@@ -125,7 +116,7 @@ getShelleyScriptsNeeded u txBody =
   where
     withdrawals = Map.keys (unWithdrawals (txBody ^. withdrawalsTxBodyL))
     scriptHashes = txinsScriptHashes (txBody ^. inputsTxBodyL) u
-    certificates = toList (txBody ^. certsTxBodyG)
+    certificates = toList (txBody ^. certsTxBodyL)
 
 consumed ::
   EraUTxO era =>
@@ -156,7 +147,7 @@ getProducedValue ::
 getProducedValue pp isRegPoolId txBody =
   sumAllValue (txBody ^. outputsTxBodyL)
     <+> Val.inject
-      (txBody ^. feeTxBodyL <+> totalCertsDeposits pp isRegPoolId (txBody ^. certsTxBodyG))
+      (txBody ^. feeTxBodyL <+> totalCertsDeposits pp isRegPoolId (txBody ^. certsTxBodyL))
 
 -- | Compute the lovelace which are destroyed by the transaction
 getConsumedCoin ::
@@ -172,7 +163,7 @@ getConsumedCoin pp lookupRefund (UTxO u) txBody =
     <> refunds
     <> withdrawals
   where
-    refunds = keyCertsRefunds pp lookupRefund (txBody ^. certsTxBodyG)
+    refunds = keyCertsRefunds pp lookupRefund (txBody ^. certsTxBodyL)
     withdrawals = fold . unWithdrawals $ txBody ^. withdrawalsTxBodyL
 
 newtype ShelleyScriptsNeeded era = ShelleyScriptsNeeded (Set.Set (ScriptHash (EraCrypto era)))

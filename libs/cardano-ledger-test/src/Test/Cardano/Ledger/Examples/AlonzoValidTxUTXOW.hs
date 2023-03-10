@@ -45,8 +45,6 @@ import Cardano.Ledger.Shelley.LedgerState (
   smartUTxOState,
  )
 import Cardano.Ledger.Shelley.TxBody (
-  DCert (..),
-  DelegCert (..),
   RewardAcnt (..),
  )
 import Cardano.Ledger.TxIn (TxIn (..))

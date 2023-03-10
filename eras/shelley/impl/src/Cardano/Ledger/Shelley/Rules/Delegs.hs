@@ -62,9 +62,6 @@ import Cardano.Ledger.Shelley.Rules.Delpl (
   ShelleyDelplPredFailure,
  )
 import Cardano.Ledger.Shelley.TxBody (
-  DCert (..),
-  DelegCert (..),
-  Delegation (..),
   Ptr (..),
   RewardAcnt (..),
   ShelleyEraTxBody (..),
@@ -142,13 +139,13 @@ instance
   , Embed (EraRule "DELPL" era) (ShelleyDELEGS era)
   , Environment (EraRule "DELPL" era) ~ DelplEnv era
   , State (EraRule "DELPL" era) ~ CertState era
-  , Signal (EraRule "DELPL" era) ~ DCert (EraCrypto era)
+  , Signal (EraRule "DELPL" era) ~ DCert era
   , EraRule "DELEGS" era ~ ShelleyDELEGS era
   ) =>
   STS (ShelleyDELEGS era)
   where
   type State (ShelleyDELEGS era) = CertState era
-  type Signal (ShelleyDELEGS era) = Seq (DCert (EraCrypto era))
+  type Signal (ShelleyDELEGS era) = Seq (DCert era)
   type Environment (ShelleyDELEGS era) = DelegsEnv era
   type BaseM (ShelleyDELEGS era) = ShelleyBase
   type
@@ -212,7 +209,7 @@ delegsTransition ::
   , Embed (EraRule "DELPL" era) (ShelleyDELEGS era)
   , Environment (EraRule "DELPL" era) ~ DelplEnv era
   , State (EraRule "DELPL" era) ~ CertState era
-  , Signal (EraRule "DELPL" era) ~ DCert (EraCrypto era)
+  , Signal (EraRule "DELPL" era) ~ DCert era
   , EraRule "DELEGS" era ~ ShelleyDELEGS era
   ) =>
   TransitionRule (ShelleyDELEGS era)
@@ -239,8 +236,9 @@ delegsTransition = do
         TRC (DelplEnv slot ptr pp acnt, certState', c)
 
 validateDelegationRegistered ::
+  EraDCert era =>
   CertState era ->
-  DCert (EraCrypto era) ->
+  DCert era ->
   Test (KeyHash 'StakePool (EraCrypto era))
 validateDelegationRegistered certState = \case
   DCertDeleg (Delegate deleg) ->

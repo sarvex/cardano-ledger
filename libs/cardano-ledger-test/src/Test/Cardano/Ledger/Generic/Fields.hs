@@ -70,7 +70,7 @@ import Cardano.Ledger.Mary.TxBody (MaryTxBody (..))
 import Cardano.Ledger.Mary.Value (MultiAsset (..))
 import qualified Cardano.Ledger.Shelley.PParams as PP (Update)
 import Cardano.Ledger.Shelley.Tx (ShelleyTx (..), ShelleyTxOut (..))
-import Cardano.Ledger.Shelley.TxBody (DCert (..), ShelleyTxBody (..), WitVKey (..))
+import Cardano.Ledger.Shelley.TxBody (ShelleyTxBody (..), WitVKey (..))
 import Cardano.Ledger.Shelley.TxWits (pattern ShelleyTxWits)
 import Cardano.Ledger.TxIn (TxIn (..))
 import Cardano.Slotting.Slot (EpochNo (..), SlotNo (..))
@@ -114,7 +114,7 @@ data TxBodyField era
   | Outputs (StrictSeq (TxOut era))
   | CollateralReturn (StrictMaybe (TxOut era))
   | TotalCol (StrictMaybe Coin)
-  | Certs (StrictSeq (DCert (EraCrypto era)))
+  | Certs (StrictSeq (DCert era))
   | Withdrawals' (Withdrawals (EraCrypto era))
   | Txfee Coin
   | Vldt ValidityInterval
@@ -126,7 +126,7 @@ data TxBodyField era
   | AdHash (StrictMaybe (AuxiliaryDataHash (EraCrypto era)))
   | Txnetworkid (StrictMaybe Network)
   | GovernanceProcs (StrictSeq (GovernanceProcedure era))
-  | ConwayCerts (StrictSeq (ConwayDCert (EraCrypto era)))
+  | ConwayCerts (StrictSeq (ConwayDCert era))
 
 pattern Inputs' :: [TxIn (EraCrypto era)] -> TxBodyField era -- Set
 
@@ -136,7 +136,7 @@ pattern RefInputs' :: [TxIn (EraCrypto era)] -> TxBodyField era -- Set
 
 pattern Outputs' :: [TxOut era] -> TxBodyField era -- StrictSeq
 
-pattern Certs' :: [DCert (EraCrypto era)] -> TxBodyField era -- StrictSeq
+pattern Certs' :: [DCert era] -> TxBodyField era -- StrictSeq
 
 pattern CollateralReturn' :: [TxOut era] -> TxBodyField era -- 0 or 1 element
 
@@ -313,7 +313,7 @@ abstractTxBody (Alonzo _) (AlonzoTxBody inp col out cert wdrl fee vldt up req mn
   , AdHash adh
   , Txnetworkid net
   ]
-abstractTxBody (Conway _) (ConwayTxBody inp col ref out colret totcol _cert wdrl fee vldt req mnt sih adh net vp pp) =
+abstractTxBody (Conway _) (ConwayTxBody inp col ref out colret totcol _cert wdrl fee vldt req mnt sih adh net gp) =
   [ Inputs inp
   , Collateral col
   , RefInputs ref
@@ -329,7 +329,7 @@ abstractTxBody (Conway _) (ConwayTxBody inp col ref out colret totcol _cert wdrl
   , WppHash sih
   , AdHash adh
   , Txnetworkid net
-  , GovernanceProcs $ (GovernanceVotingProcedure <$> vp) <> (GovernanceProposalProcedure <$> pp)
+  , GovernanceProcs gp
   ]
 abstractTxBody (Babbage _) (BabbageTxBody inp col ref out colret totcol cert wdrl fee vldt up req mnt sih adh net) =
   [ Inputs inp
@@ -468,7 +468,7 @@ pattern Update' x <-
   where
     Update' x = Update (toStrictMaybe x)
 
-certsview :: TxBodyField era -> Maybe [DCert (EraCrypto era)]
+certsview :: TxBodyField era -> Maybe [DCert era]
 certsview (Certs x) = Just (fromStrictSeq x)
 certsview _ = Nothing
 

@@ -3,7 +3,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -22,16 +21,11 @@ import Cardano.Ledger.Coin (Coin (..))
 import Cardano.Ledger.Core
 import Cardano.Ledger.Credential (StakeCredential)
 import Cardano.Ledger.Keys (KeyHash (..), KeyRole (..))
-import Cardano.Ledger.Shelley.Delegation.Certificates (DCert (..), isRegKey)
-import Cardano.Ledger.Shelley.TxBody (
-  PoolParams (..),
-  ShelleyEraTxBody (..),
-  pattern DeRegKey,
-  pattern RegKey,
-  pattern RegPool,
- )
+import Cardano.Ledger.PoolParams (PoolParams (..))
+import Cardano.Ledger.Shelley.Core (ShelleyEraTxBody (..))
+import Cardano.Ledger.Shelley.Delegation (isRegKey)
 import Cardano.Ledger.Val ((<+>), (<×>))
-import Data.Foldable (foldMap', foldl')
+import Data.Foldable (Foldable (..), foldMap', foldl')
 import qualified Data.Map.Strict as Map
 import Data.Monoid (Sum (..))
 import qualified Data.Set as Set
@@ -49,11 +43,11 @@ import Lens.Micro ((^.))
 -- Note that this is not an issue for key registrations since subsequent
 -- registration certificates would be invalid.
 totalCertsDeposits ::
-  (EraPParams era, Foldable f) =>
+  (EraPParams era, Foldable f, EraDCert era) =>
   PParams era ->
   -- | Check whether a pool with a supplied PoolStakeId is already registered.
   (KeyHash 'StakePool (EraCrypto era) -> Bool) ->
-  f (DCert (EraCrypto era)) ->
+  f (DCert era) ->
   Coin
 totalCertsDeposits pp isRegPool certs =
   numKeys <×> pp ^. ppKeyDepositL
@@ -68,10 +62,10 @@ totalCertsDeposits pp isRegPool certs =
       _ -> regPoolIds
 
 totalCertsDepositsCertState ::
-  (EraPParams era, Foldable f) =>
+  (EraPParams era, Foldable f, EraDCert era) =>
   PParams era ->
   CertState era ->
-  f (DCert (EraCrypto era)) ->
+  f (DCert era) ->
   Coin
 totalCertsDepositsCertState pp dpstate =
   totalCertsDeposits pp (`Map.member` psStakePoolParams (certPState dpstate))
@@ -85,24 +79,24 @@ totalTxDeposits ::
   TxBody era ->
   Coin
 totalTxDeposits pp dpstate txb =
-  totalCertsDepositsCertState pp dpstate (txb ^. certsTxBodyG)
+  totalCertsDepositsCertState pp dpstate (txb ^. certsTxBodyL)
 
 -- | Compute the key deregistration refunds in a transaction
 keyCertsRefundsCertState ::
-  (EraPParams era, Foldable f) =>
+  (EraPParams era, Foldable f, EraDCert era) =>
   PParams era ->
   CertState era ->
-  f (DCert (EraCrypto era)) ->
+  f (DCert era) ->
   Coin
 keyCertsRefundsCertState pp dpstate = keyCertsRefunds pp (lookupDepositDState (certDState dpstate))
 
 -- | Compute the key deregistration refunds in a transaction
 keyCertsRefunds ::
-  (EraPParams era, Foldable f) =>
+  (EraPParams era, Foldable f, EraDCert era) =>
   PParams era ->
   -- | Function that can lookup current deposit, in case when the stake key is registered.
   (StakeCredential (EraCrypto era) -> Maybe Coin) ->
-  f (DCert (EraCrypto era)) ->
+  f (DCert era) ->
   Coin
 keyCertsRefunds pp lookupDeposit certs = snd (foldl' accum (mempty, Coin 0) certs)
   where
@@ -129,4 +123,4 @@ keyTxRefunds ::
   CertState era ->
   TxBody era ->
   Coin
-keyTxRefunds pp dpstate tx = keyCertsRefundsCertState pp dpstate (tx ^. certsTxBodyG)
+keyTxRefunds pp dpstate tx = keyCertsRefundsCertState pp dpstate (toList $ tx ^. certsTxBodyL)

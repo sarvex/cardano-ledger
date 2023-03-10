@@ -465,7 +465,7 @@ exampleTxIns =
     [ TxIn (TxId (mkDummySafeHash Proxy 1)) minBound
     ]
 
-exampleCerts :: Crypto c => StrictSeq (DCert c)
+exampleCerts :: (ShelleyEraDCert era) => StrictSeq (DCert era)
 exampleCerts =
   StrictSeq.fromList
     [ DCertDeleg (RegKey (keyToCredential exampleStakeKey))

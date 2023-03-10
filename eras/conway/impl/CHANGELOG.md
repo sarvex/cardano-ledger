@@ -12,19 +12,18 @@
 * Add `ConwayDelegsPredFailure`
 * Renamed `DELPL` to `CERT`
 * Added `ConwayDELEGS` rule
-* Added `ConwayCERT` rule synonym
+* Added `ConwayCERT` rule
 * Added `ConwayDelegsPredFailure` rule
 * Added `ConwayDelegsEvent` rule
 * Change the Conway txInfo to allow Plutus V3
   NOTE - unlike V1 and V2, the ledger will no longer place the "zero ada" value
   in the script context for the transaction minting field.
+* Added `GovernanceActionMetadata`
+* Added `RatifyEnv` and `RatifySignal`
 
 ## 1.1.0.0
 
 * Added `RATIFY` rule
-* Added `ConwayGovernance`
-* Added `RatifyEnv` and `RatifySignal`
-* Added `EnactState` and `RatifyState`
 * Added lenses:
   * `cgTallyL`
   * `cgRatifyL`

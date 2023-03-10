@@ -34,8 +34,6 @@ import Cardano.Ledger.Shelley.PParams (
  )
 import qualified Cardano.Ledger.Shelley.TxAuxData as TxAuxData
 import Cardano.Ledger.Shelley.TxBody (
-  DCert (..),
-  DelegCert (..),
   RewardAcnt (..),
   ShelleyTxOut (..),
   Withdrawals (..),

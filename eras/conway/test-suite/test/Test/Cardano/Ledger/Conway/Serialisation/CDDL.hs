@@ -13,9 +13,8 @@ import Cardano.Ledger.Alonzo.TxWits (Redeemers)
 import Cardano.Ledger.Babbage.TxBody (Datum)
 import Cardano.Ledger.Conway (Conway)
 import Cardano.Ledger.Conway.Delegation.Certificates (ConwayDCert)
-import Cardano.Ledger.Conway.Governance (ProposalProcedure, VotingProcedure)
+import Cardano.Ledger.Conway.Governance (GovernanceProcedure, ProposalProcedure, VotingProcedure)
 import Cardano.Ledger.Core
-import Cardano.Ledger.Crypto (StandardCrypto)
 import qualified Data.ByteString.Lazy as BSL
 import Paths_cardano_ledger_conway_test (getDataFileName)
 import Test.Cardano.Ledger.Shelley.Serialisation.CDDLUtils (
@@ -41,9 +40,10 @@ tests n = withResource combinedCDDL (const (pure ())) $ \cddl ->
     , cddlTest @CostModels (eraProtVerHigh @Conway) n "costmdls"
     , cddlAnnotatorTest @(Redeemers Conway) (eraProtVerHigh @Conway) n "[* redeemer]"
     , cddlAnnotatorTest @(Tx Conway) (eraProtVerHigh @Conway) n "transaction"
+    , cddlTest @(GovernanceProcedure Conway) (eraProtVerHigh @Conway) n "governance_procedure"
     , cddlTest @(VotingProcedure Conway) (eraProtVerHigh @Conway) n "voting_procedure"
     , cddlTest @(ProposalProcedure Conway) (eraProtVerHigh @Conway) n "proposal_procedure"
-    , cddlTest @(ConwayDCert StandardCrypto) (eraProtVerHigh @Conway) n "certificate"
+    , cddlTest @(ConwayDCert Conway) (eraProtVerHigh @Conway) n "certificate"
     ]
       <*> pure cddl
 

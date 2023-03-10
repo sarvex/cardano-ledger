@@ -44,7 +44,6 @@ import Cardano.Ledger.Keys (
 import Cardano.Ledger.SafeHash (hashAnnotated)
 import Cardano.Ledger.Shelley (ShelleyEra)
 import Cardano.Ledger.Shelley.Core
-import Cardano.Ledger.Shelley.Delegation.Certificates (DelegCert (..))
 import Cardano.Ledger.Shelley.LedgerState (
   AccountState (..),
   LedgerState (..),
@@ -53,9 +52,6 @@ import Cardano.Ledger.Shelley.LedgerState (
 import Cardano.Ledger.Shelley.Rules (LedgerEnv (..), ShelleyLEDGER)
 import Cardano.Ledger.Shelley.Tx (ShelleyTx (..))
 import Cardano.Ledger.Shelley.TxBody (
-  DCert (..),
-  Delegation (..),
-  PoolCert (..),
   PoolParams (..),
   RewardAcnt (..),
   ShelleyTxBody (..),
@@ -233,14 +229,14 @@ firstStakeKeyCred :: Credential 'Staking B_Crypto
 firstStakeKeyCred = stakeKeyToCred stakeKeyOne
 
 -- Create stake key registration certificates
-stakeKeyRegistrations :: [KeyPair 'Staking B_Crypto] -> StrictSeq (DCert B_Crypto)
+stakeKeyRegistrations :: [KeyPair 'Staking B_Crypto] -> StrictSeq (DCert B)
 stakeKeyRegistrations keys =
   StrictSeq.fromList $
     fmap (DCertDeleg . RegKey . (KeyHashObj . hashKey . vKey)) keys
 
 -- Create a transaction body given a sequence of certificates.
 -- It spends the genesis coin given by the index ix.
-txbFromCerts :: TxIx -> StrictSeq (DCert B_Crypto) -> ShelleyTxBody B
+txbFromCerts :: TxIx -> StrictSeq (DCert B) -> ShelleyTxBody B
 txbFromCerts ix regCerts =
   ShelleyTxBody
     (Set.fromList [TxIn genesisId ix])
@@ -412,7 +408,7 @@ mkPoolParameters keys =
     }
 
 -- Create stake pool registration certs
-poolRegCerts :: [KeyPair 'StakePool B_Crypto] -> StrictSeq (DCert B_Crypto)
+poolRegCerts :: [KeyPair 'StakePool B_Crypto] -> StrictSeq (DCert B)
 poolRegCerts = StrictSeq.fromList . fmap (DCertPool . RegPool . mkPoolParameters)
 
 -- Create a transaction that registers stake pools.

@@ -28,7 +28,7 @@ import Cardano.Ledger.Keys (
  )
 import Cardano.Ledger.SafeHash (hashAnnotated)
 import Cardano.Ledger.Shelley (ShelleyEra)
-import Cardano.Ledger.Shelley.Delegation.Certificates (DelegCert (..), MIRCert (..))
+import Cardano.Ledger.Shelley.Delegation (MIRCert (..), ShelleyDCert (..))
 import Cardano.Ledger.Shelley.LedgerState (
   AccountState (..),
   EpochState (..),
@@ -47,7 +47,6 @@ import Cardano.Ledger.Shelley.Rules (
  )
 import Cardano.Ledger.Shelley.Tx (ShelleyTx (..))
 import Cardano.Ledger.Shelley.TxBody (
-  DCert (..),
   MIRPot (..),
   MIRTarget (..),
   ShelleyTxBody (..),
@@ -137,7 +136,7 @@ txbodyEx1 pot =
     (Set.fromList [TxIn genesisId minBound])
     (StrictSeq.singleton $ ShelleyTxOut Cast.aliceAddr aliceCoinEx1)
     ( StrictSeq.fromList
-        [ DCertMir (MIRCert pot ir)
+        [ ShelleyDCertMir (MIRCert pot ir)
         , DCertDeleg (RegKey Cast.aliceSHK)
         ]
     )

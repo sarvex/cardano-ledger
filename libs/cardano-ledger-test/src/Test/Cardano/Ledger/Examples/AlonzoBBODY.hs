@@ -70,9 +70,6 @@ import Cardano.Ledger.Shelley.Rules (
   ShelleyPoolPredFailure (..),
  )
 import Cardano.Ledger.Shelley.TxBody (
-  DCert (..),
-  DelegCert (..),
-  PoolCert (..),
   PoolMetadata (..),
   RewardAcnt (..),
  )

@@ -67,7 +67,6 @@ tests ::
   , EraGovernance era
   , QC.HasTrace (CHAIN era) (GenEnv era)
   , ChainProperty era
-  , ProtVerAtMost era 8
   ) =>
   TestTree
 tests =
@@ -94,7 +93,7 @@ tests =
        in conjoin (map (delegProp delegEnv) delegSsts)
 
 -- | Check stake key registration
-keyRegistration :: SourceSignalTarget (ShelleyDELEG era) -> Property
+keyRegistration :: EraDCert era => SourceSignalTarget (ShelleyDELEG era) -> Property
 keyRegistration
   SourceSignalTarget
     { signal = (DCertDeleg (RegKey hk))
@@ -111,7 +110,7 @@ keyRegistration
 keyRegistration _ = property ()
 
 -- | Check stake key de-registration
-keyDeRegistration :: SourceSignalTarget (ShelleyDELEG era) -> Property
+keyDeRegistration :: EraDCert era => SourceSignalTarget (ShelleyDELEG era) -> Property
 keyDeRegistration
   SourceSignalTarget
     { signal = (DCertDeleg (DeRegKey hk))
@@ -128,7 +127,7 @@ keyDeRegistration
 keyDeRegistration _ = property ()
 
 -- | Check stake key delegation
-keyDelegation :: SourceSignalTarget (ShelleyDELEG era) -> Property
+keyDelegation :: EraDCert era => SourceSignalTarget (ShelleyDELEG era) -> Property
 keyDelegation
   SourceSignalTarget
     { signal = (DCertDeleg (Delegate (Delegation from to)))
@@ -169,7 +168,7 @@ rewardsSumInvariant
           ]
 
 checkInstantaneousRewards ::
-  EraPParams era =>
+  (EraPParams era, ShelleyEraDCert era) =>
   DelegEnv era ->
   SourceSignalTarget (ShelleyDELEG era) ->
   Property

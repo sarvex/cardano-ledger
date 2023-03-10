@@ -44,7 +44,7 @@ instance Crypto c => Arbitrary (ConwayDelegCert c) where
       , ConwayUnDeleg <$> arbitrary <*> arbitrary
       ]
 
-instance Crypto c => Arbitrary (ConwayDCert c) where
+instance Era era => Arbitrary (ConwayDCert era) where
   arbitrary =
     oneof
       [ ConwayDCertDeleg <$> arbitrary
@@ -149,7 +149,6 @@ instance
       <*> scale (`div` 15) arbitrary
       <*> arbitrary
       <*> scale (`div` 15) arbitrary
-      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

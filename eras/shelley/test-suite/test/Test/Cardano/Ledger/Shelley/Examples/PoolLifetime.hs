@@ -45,6 +45,7 @@ import Cardano.Ledger.PoolDistr (
  )
 import Cardano.Ledger.SafeHash (hashAnnotated)
 import Cardano.Ledger.Shelley (ShelleyEra)
+import Cardano.Ledger.Shelley.Delegation (ShelleyDCert (..))
 import Cardano.Ledger.Shelley.LedgerState (
   NewEpochState (..),
   PulsingRewUpdate (..),
@@ -65,13 +66,9 @@ import Cardano.Ledger.Shelley.Tx (
   ShelleyTx (..),
  )
 import Cardano.Ledger.Shelley.TxBody (
-  DCert (..),
-  DelegCert (..),
-  Delegation (..),
   MIRCert (..),
   MIRPot (..),
   MIRTarget (..),
-  PoolCert (..),
   PoolParams (..),
   RewardAcnt (..),
   ShelleyTxBody (..),
@@ -198,7 +195,7 @@ txbodyEx1 =
           , DCertDeleg (RegKey Cast.carlSHK)
           , DCertPool (RegPool Cast.alicePoolParams)
           ]
-            ++ [ DCertMir
+            ++ [ ShelleyDCertMir
                   ( MIRCert
                       ReservesMIR
                       ( StakeAddressesMIR $

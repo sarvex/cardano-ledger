@@ -39,6 +39,7 @@ import Cardano.Ledger.Alonzo.TxWits (
 import Cardano.Ledger.Babbage.TxBody (BabbageTxOut (..), Datum (..))
 import Cardano.Ledger.BaseTypes (Network (..), mkTxIxPartial)
 import Cardano.Ledger.Coin (Coin (..))
+import Cardano.Ledger.Conway.Delegation.Certificates (ConwayDCert (..), ConwayDelegCert (..))
 import Cardano.Ledger.Core
 import Cardano.Ledger.Keys (
   KeyHash,
@@ -51,15 +52,14 @@ import Cardano.Ledger.SafeHash (SafeHash, hashAnnotated)
 import Cardano.Ledger.Shelley.API (
   Addr (..),
   Credential (..),
-  PoolCert (RegPool, RetirePool),
   PoolParams (..),
   RewardAcnt (..),
   StakeReference (..),
   Withdrawals (..),
  )
+import Cardano.Ledger.Shelley.Delegation (ShelleyDCert (..))
 import Cardano.Ledger.Shelley.LedgerState (RewardAccounts)
 import qualified Cardano.Ledger.Shelley.Scripts as Shelley (MultiSig (..))
-import Cardano.Ledger.Shelley.TxBody (DCert (..), DelegCert (..), Delegation (..))
 import Cardano.Ledger.Slot (EpochNo (EpochNo))
 import Cardano.Ledger.TxIn (TxId (..), TxIn (..))
 import Cardano.Ledger.UTxO (UTxO (..))
@@ -552,7 +552,7 @@ chooseGood bad n xs = do
 -- ==================================================
 -- Generating Certificates, May add to the Model
 
-genDCert :: forall era. Reflect era => SlotNo -> GenRS era (DCert (EraCrypto era))
+genDCert :: forall era. Reflect era => SlotNo -> GenRS era (DCert era)
 genDCert slot = do
   res <-
     elementsT
@@ -587,7 +587,7 @@ genDCert slot = do
       delta <- lift $ choose (nextEpoch, maxEpoch)
       return . EpochNo $ (curEpoch + delta)
 
-genDCerts :: forall era. Reflect era => SlotNo -> GenRS era [DCert (EraCrypto era)]
+genDCerts :: forall era. Reflect era => SlotNo -> GenRS era [DCert era]
 genDCerts slot = do
   let genUniqueScript (!dcs, !ss, !regCreds) _ = do
         honest <- gets gsStableDelegators
@@ -650,7 +650,7 @@ genDCerts slot = do
   n <- lift $ choose (0, maxcert)
   reward <- gets (mRewards . gsModel)
   let initSets ::
-        ( [DCert (EraCrypto era)]
+        ( [DCert era]
         , Set (ScriptHash (EraCrypto era), Maybe (KeyHash 'StakePool (EraCrypto era)))
         , Map (Credential 'Staking (EraCrypto era)) Coin
         )
@@ -763,19 +763,36 @@ genRecipientsFrom txOuts = do
                 else coreTxOut reify fields : rs
   goNew extra txOuts []
 
-getDCertCredential :: DCert c -> Maybe (Credential 'Staking c)
-getDCertCredential = \case
-  DCertDeleg d ->
+getDCertCredential :: forall era. Reflect era => DCert era -> Maybe (Credential 'Staking (EraCrypto era))
+getDCertCredential = case reify @era of
+  Shelley _ -> getShelleyDCertCredential
+  Mary _ -> getShelleyDCertCredential
+  Allegra _ -> getShelleyDCertCredential
+  Alonzo _ -> getShelleyDCertCredential
+  Babbage _ -> getShelleyDCertCredential
+  Conway _ -> getConwayDCertCredential
+
+getShelleyDCertCredential :: ShelleyDCert era -> Maybe (Credential 'Staking (EraCrypto era))
+getShelleyDCertCredential = \case
+  ShelleyDCertDeleg d ->
     case d of
       RegKey _rk -> Nothing -- we don't require witnesses for RegKey
       DeRegKey drk -> Just drk
       Delegate (Delegation dk _) -> Just dk
-  DCertPool pc ->
+  ShelleyDCertPool pc ->
     case pc of
       RegPool PoolParams {..} -> Just . coerceKeyRole $ KeyHashObj ppId
       RetirePool kh _ -> Just . coerceKeyRole $ KeyHashObj kh
-  DCertGenesis _g -> Nothing
-  DCertMir _m -> Nothing
+  ShelleyDCertGenesis _g -> Nothing
+  ShelleyDCertMir _m -> Nothing
+
+getConwayDCertCredential :: ConwayDCert era -> Maybe (Credential 'Staking (EraCrypto era))
+getConwayDCertCredential (ConwayDCertPool (RegPool PoolParams {..})) = Just . coerceKeyRole $ KeyHashObj ppId
+getConwayDCertCredential (ConwayDCertPool (RetirePool kh _)) = Just . coerceKeyRole $ KeyHashObj kh
+getConwayDCertCredential (ConwayDCertDeleg (ConwayDeleg dk _ _)) = Just dk
+getConwayDCertCredential (ConwayDCertDeleg (ConwayReDeleg _ _)) = Nothing
+getConwayDCertCredential (ConwayDCertDeleg (ConwayUnDeleg _ _)) = Nothing
+getConwayDCertCredential (ConwayDCertConstitutional _) = Nothing
 
 genWithdrawals :: Reflect era => SlotNo -> GenRS era (Withdrawals (EraCrypto era), RewardAccounts (EraCrypto era))
 genWithdrawals slot =

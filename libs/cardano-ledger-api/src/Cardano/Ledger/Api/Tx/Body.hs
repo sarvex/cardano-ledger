@@ -26,7 +26,6 @@ module Cardano.Ledger.Api.Tx.Body (
   updateTxBodyL,
   updateTxBodyG,
   certsTxBodyL,
-  certsTxBodyG,
 
   -- * Allegra Era
   AllegraEraTxBody,
@@ -57,8 +56,7 @@ module Cardano.Ledger.Api.Tx.Body (
 
   -- * Conway Era
   ConwayEraTxBody,
-  votingProceduresTxBodyL,
-  proposalProceduresTxBodyL,
+  govProcsTxBodyL,
   conwayCertsTxBodyL,
 )
 where

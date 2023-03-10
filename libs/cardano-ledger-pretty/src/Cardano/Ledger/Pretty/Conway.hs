@@ -146,8 +146,7 @@ ppConwayTxBody txb =
     , ("script integrity hash", ppStrictMaybe ppSafeHash $ txb ^. scriptIntegrityHashTxBodyL)
     , ("auxiliary data hash", ppStrictMaybe ppAuxiliaryDataHash $ txb ^. auxDataHashTxBodyL)
     , ("network id", ppStrictMaybe ppNetwork $ txb ^. networkIdTxBodyL)
-    , ("voting procedures", ppStrictSeq prettyA $ txb ^. votingProceduresTxBodyL)
-    , ("proposal procedures", ppStrictSeq prettyA $ txb ^. proposalProceduresTxBodyL)
+    , ("governance procedures", ppStrictSeq prettyA $ txb ^. govProcsTxBodyL)
     ]
 
 instance PrettyA Vote where

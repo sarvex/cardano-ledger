@@ -23,13 +23,10 @@ import Cardano.Ledger.Block (Block (..), bheader)
 import Cardano.Ledger.Shelley.API (
   Addr (..),
   Credential (..),
-  DCert (..),
-  DelegCert (..),
-  Delegation (..),
   ShelleyLEDGER,
  )
 import Cardano.Ledger.Shelley.Core
-import Cardano.Ledger.Shelley.Delegation.Certificates (
+import Cardano.Ledger.Shelley.Delegation (
   isDeRegKey,
   isDelegation,
   isGenesisDelegation,
@@ -223,7 +220,7 @@ relevantCasesAreCoveredForTrace tr = do
 
 -- | Ratio of certificates with script credentials to the number of certificates
 -- that could have script credentials.
-scriptCredentialCertsRatio :: [DCert c] -> Double
+scriptCredentialCertsRatio :: EraDCert c => [DCert c] -> Double
 scriptCredentialCertsRatio certs =
   ratioInt haveScriptCerts couldhaveScriptCerts
   where
@@ -250,10 +247,9 @@ scriptCredentialCertsRatio certs =
 certsByTx ::
   ( ShelleyEraTxBody era
   , EraTx era
-  , ProtVerAtMost era 8
   ) =>
   [Tx era] ->
-  [[DCert (EraCrypto era)]]
+  [[DCert era]]
 certsByTx txs = toList . view certsTxBodyL . view bodyTxL <$> txs
 
 ratioInt :: Int -> Int -> Double

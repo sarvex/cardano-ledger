@@ -56,8 +56,6 @@ import Cardano.Ledger.Shelley.Core hiding (TranslationError)
 import Cardano.Ledger.Shelley.LedgerState (UTxOState (..))
 import Cardano.Ledger.Shelley.Rules as Shelley (ShelleyUtxowPredFailure (..))
 import Cardano.Ledger.Shelley.TxBody (
-  DCert (..),
-  DelegCert (..),
   RewardAcnt (..),
  )
 import Cardano.Ledger.Val (inject, (<+>))

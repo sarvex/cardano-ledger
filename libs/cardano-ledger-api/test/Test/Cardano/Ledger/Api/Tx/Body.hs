@@ -15,7 +15,7 @@ import Cardano.Ledger.Coin
 import Cardano.Ledger.Compactible
 import Cardano.Ledger.PoolParams
 import Cardano.Ledger.Shelley.Core
-import Cardano.Ledger.Shelley.Delegation.Certificates
+import Cardano.Ledger.Shelley.Delegation (isRegKey)
 import Cardano.Ledger.Shelley.UTxO hiding (consumed, produced)
 import qualified Cardano.Ledger.UMap as UM
 import Cardano.Ledger.Val
@@ -36,7 +36,7 @@ totalTxDeposits ::
 totalTxDeposits pp dpstate txb =
   numKeys <×> pp ^. ppKeyDepositL <+> snd (foldl' accum (regpools, Coin 0) certs)
   where
-    certs = toList (txb ^. certsTxBodyG)
+    certs = toList (txb ^. certsTxBodyL)
     numKeys = length $ filter isRegKey certs
     regpools = psStakePoolParams (certPState dpstate)
     accum (!pools, !ans) (DCertPool (RegPool poolparam)) =
@@ -54,7 +54,7 @@ keyTxRefunds ::
   Coin
 keyTxRefunds pp dpstate tx = snd (foldl' accum (initialKeys, Coin 0) certs)
   where
-    certs = tx ^. certsTxBodyG
+    certs = tx ^. certsTxBodyL
     initialKeys = UM.RewardDeposits $ dsUnified $ certDState dpstate
     keyDeposit = UM.compactCoinOrError (pp ^. ppKeyDepositL)
     accum (!keys, !ans) (DCertDeleg (RegKey k)) =
@@ -92,7 +92,7 @@ evaluateTransactionBalance pp dpstate (UTxO u) txBody = consumed <-> produced
 -- | Randomly lookup pool params and staking credentials to add them as unregistration and
 -- undelegation certificates respectively.
 genTxBodyFrom ::
-  (ShelleyEraTxBody era, AtMostEra BabbageEra era, Arbitrary (TxBody era)) =>
+  (ShelleyEraTxBody era, Arbitrary (TxBody era)) =>
   CertState era ->
   UTxO era ->
   Gen (TxBody era)
@@ -113,7 +113,7 @@ genTxBodyFrom CertState {certDState, certPState} (UTxO u) = do
     )
 
 propEvalBalanceTxBody ::
-  (EraUTxO era, MaryEraTxBody era, AtMostEra BabbageEra era, Arbitrary (TxBody era)) =>
+  (EraUTxO era, MaryEraTxBody era, Arbitrary (TxBody era)) =>
   PParams era ->
   CertState era ->
   UTxO era ->

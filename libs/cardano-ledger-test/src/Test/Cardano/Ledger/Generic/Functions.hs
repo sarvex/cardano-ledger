@@ -55,9 +55,6 @@ import Cardano.Ledger.Shelley.LedgerState (
   VState (..),
  )
 import Cardano.Ledger.Shelley.TxBody (
-  DCert (..),
-  DelegCert (..),
-  PoolCert (..),
   ShelleyTxOut (..),
  )
 import Cardano.Ledger.TxIn (TxIn (..))
@@ -121,9 +118,9 @@ protocolVersion (Shelley _) = ProtVer (natVersion @2) 0
 
 -- | Positive numbers are "deposits owed", negative amounts are "refunds gained"
 depositsAndRefunds ::
-  EraPParams era =>
+  (EraPParams era, EraDCert era) =>
   PParams era ->
-  [DCert (EraCrypto era)] ->
+  [DCert era] ->
   Map (Credential 'Staking (EraCrypto era)) Coin ->
   Coin
 depositsAndRefunds pp certificates keydeposits = List.foldl' accum (Coin 0) certificates
@@ -132,7 +129,7 @@ depositsAndRefunds pp certificates keydeposits = List.foldl' accum (Coin 0) cert
     accum ans (DCertDeleg (DeRegKey hk)) =
       case Map.lookup hk keydeposits of
         Nothing -> ans
-        Just c -> (ans <-> c)
+        Just c -> ans <-> c
     accum ans (DCertPool (RegPool _)) = pp ^. ppPoolDepositL <+> ans
     accum ans (DCertPool (RetirePool _ _)) = ans -- The pool reward is refunded at the end of the epoch
     accum ans _ = ans
@@ -334,7 +331,7 @@ alwaysFalse p@(Allegra _) _ n = never n p
 alwaysFalse p@(Shelley _) _ n = never n p
 {-# NOINLINE alwaysFalse #-}
 
-certs :: (ShelleyEraTxBody era, EraTx era, ProtVerAtMost era 8) => Proof era -> Tx era -> [DCert (EraCrypto era)]
+certs :: (ShelleyEraTxBody era, EraTx era) => Proof era -> Tx era -> [DCert era]
 certs _ tx = Fold.toList $ tx ^. bodyTxL . certsTxBodyL
 
 -- | Create an old style RewardUpdate to be used in tests, in any Era.

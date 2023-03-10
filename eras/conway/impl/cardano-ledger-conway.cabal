@@ -39,6 +39,7 @@ library
     other-modules:
         Cardano.Ledger.Conway.Era
         Cardano.Ledger.Conway.UTxO
+        Cardano.Ledger.Conway.Rules.Cert
         Cardano.Ledger.Conway.Rules.Delegs
         Cardano.Ledger.Conway.Rules.Enact
         Cardano.Ledger.Conway.Rules.Epoch

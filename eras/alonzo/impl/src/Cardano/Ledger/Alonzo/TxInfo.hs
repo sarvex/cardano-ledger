@@ -5,7 +5,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
@@ -35,10 +37,8 @@ module Cardano.Ledger.Alonzo.TxInfo (
   txInfoOut,
   transPolicyID,
   transAssetName,
-  transMultiAsset,
   transMintValue,
   transValue,
-  transDCert,
   transWithdrawals,
   getWitVKeyHash,
   transDataPair,
@@ -58,6 +58,12 @@ module Cardano.Ledger.Alonzo.TxInfo (
   PlutusData (..),
   PlutusError (..),
   PlutusDebugInfo (..),
+  EraPlutusContext (..),
+  transShelleyDCert,
+  PlutusDCert (..),
+  unDCertV1,
+  unDCertV2,
+  unDCertV3,
   debugPlutus,
   runPLCScript,
   explainPlutusFailure,
@@ -73,6 +79,7 @@ where
 import Cardano.Crypto.Hash.Class (Hash, hashToBytes)
 import Cardano.Ledger.Address (Addr (..), RewardAcnt (..))
 import Cardano.Ledger.Allegra.Scripts (ValidityInterval (..))
+import Cardano.Ledger.Alonzo.Era (AlonzoEra)
 import Cardano.Ledger.Alonzo.Scripts (
   AlonzoScript (..),
   ExUnits (..),
@@ -87,7 +94,6 @@ import Cardano.Ledger.Alonzo.Tx (CostModel, ScriptPurpose (..), txdats')
 import Cardano.Ledger.Alonzo.TxBody (
   AlonzoEraTxBody (..),
   AlonzoEraTxOut (..),
-  ShelleyEraTxBody (..),
   mintTxBodyL,
   vldtTxBodyL,
  )
@@ -120,16 +126,9 @@ import Cardano.Ledger.Keys (KeyHash (..), hashKey)
 import Cardano.Ledger.Language (IsLanguage (..), Language (..), SLanguage (..), fromSLanguage)
 import Cardano.Ledger.Mary.Value (AssetName (..), MaryValue (..), MultiAsset (..), PolicyID (..))
 import Cardano.Ledger.SafeHash (SafeHash, extractHash, hashAnnotated)
+import Cardano.Ledger.Shelley.Delegation
 import qualified Cardano.Ledger.Shelley.HardForks as HardForks
-import Cardano.Ledger.Shelley.TxBody (
-  DCert (..),
-  DelegCert (..),
-  Delegation (..),
-  PoolCert (..),
-  PoolParams (..),
-  WitVKey (..),
-  Withdrawals (..),
- )
+import Cardano.Ledger.Shelley.TxBody (PoolParams (..), WitVKey (..), Withdrawals (..))
 import Cardano.Ledger.TxIn (TxId (..), TxIn (..))
 import Cardano.Ledger.UTxO (UTxO (..))
 import Cardano.Ledger.Val (Val (..))
@@ -143,6 +142,7 @@ import Data.ByteString as BS (ByteString, length)
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Short as SBS (ShortByteString, fromShort)
 import qualified Data.ByteString.UTF8 as BSU
+import Data.Foldable (Foldable (..))
 import qualified Data.Foldable as F (asum)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map.Strict as Map
@@ -362,17 +362,6 @@ transPolicyID (PolicyID (ScriptHash x)) = PV1.CurrencySymbol (PV1.toBuiltin (has
 transAssetName :: AssetName -> PV1.TokenName
 transAssetName (AssetName bs) = PV1.TokenName (PV1.toBuiltin (SBS.fromShort bs))
 
-transMultiAsset :: MultiAsset c -> PV1.Value
-transMultiAsset (MultiAsset m) = Map.foldlWithKey' accum1 mempty m
-  where
-    accum1 ans sym mp2 = Map.foldlWithKey' accum2 ans mp2
-      where
-        accum2 ans2 tok quantity =
-          PV1.unionWith
-            (+)
-            ans2
-            (PV1.singleton (transPolicyID sym) (transAssetName tok) quantity)
-
 -- | Hysterical raisins:
 --
 -- Previously transaction body contained a mint field with MaryValue instead of a
@@ -380,35 +369,55 @@ transMultiAsset (MultiAsset m) = Map.foldlWithKey' accum1 mempty m
 -- makes no sense). However, if we don't preserve previous translation, scripts that
 -- previously succeeded will fail.
 transMintValue :: MultiAsset c -> PV1.Value
-transMintValue m = transMultiAsset m <> justZeroAda
+transMintValue m = transMintValue m <> justZeroAda
   where
     justZeroAda = PV1.singleton PV1.adaSymbol PV1.adaToken 0
 
 transValue :: MaryValue c -> PV1.Value
-transValue (MaryValue n m) = justAda <> transMultiAsset m
+transValue (MaryValue n m) = justAda <> transMintValue m
   where
     justAda = PV1.singleton PV1.adaSymbol PV1.adaToken n
 
 -- =============================================
 -- translate fileds like DCert, Withdrawals, and similar
 
-transDCert :: DCert c -> PV1.DCert
-transDCert (DCertDeleg (RegKey stkcred)) =
+data PlutusDCert (l :: Language) where
+  DCertPlutusV1 :: PV1.DCert -> PlutusDCert 'PlutusV1
+  DCertPlutusV2 :: PV2.DCert -> PlutusDCert 'PlutusV2
+  DCertPlutusV3 :: PV3.DCert -> PlutusDCert 'PlutusV3
+
+unDCertV1 :: PlutusDCert 'PlutusV1 -> PV1.DCert
+unDCertV1 (DCertPlutusV1 x) = x
+
+unDCertV2 :: PlutusDCert 'PlutusV2 -> PV2.DCert
+unDCertV2 (DCertPlutusV2 x) = x
+
+unDCertV3 :: PlutusDCert 'PlutusV3 -> PV3.DCert
+unDCertV3 (DCertPlutusV3 x) = x
+
+class EraDCert era => EraPlutusContext (l :: Language) era where
+  transDCert :: DCert era -> PlutusDCert l
+
+instance Crypto c => EraPlutusContext 'PlutusV1 (AlonzoEra c) where
+  transDCert = DCertPlutusV1 . transShelleyDCert
+
+transShelleyDCert :: ShelleyDCert era -> PV1.DCert
+transShelleyDCert (ShelleyDCertDeleg (RegKey stkcred)) =
   PV1.DCertDelegRegKey (PV1.StakingHash (transStakeCred stkcred))
-transDCert (DCertDeleg (DeRegKey stkcred)) =
+transShelleyDCert (ShelleyDCertDeleg (DeRegKey stkcred)) =
   PV1.DCertDelegDeRegKey (PV1.StakingHash (transStakeCred stkcred))
-transDCert (DCertDeleg (Delegate (Delegation stkcred keyhash))) =
+transShelleyDCert (ShelleyDCertDeleg (Delegate (Delegation stkcred keyhash))) =
   PV1.DCertDelegDelegate
     (PV1.StakingHash (transStakeCred stkcred))
     (transKeyHash keyhash)
-transDCert (DCertPool (RegPool pp)) =
+transShelleyDCert (ShelleyDCertPool (RegPool pp)) =
   PV1.DCertPoolRegister
     (transKeyHash (ppId pp))
     (PV1.PubKeyHash (PV1.toBuiltin (transHash (ppVrf pp))))
-transDCert (DCertPool (RetirePool keyhash (EpochNo i))) =
+transShelleyDCert (ShelleyDCertPool (RetirePool keyhash (EpochNo i))) =
   PV1.DCertPoolRetire (transKeyHash keyhash) (fromIntegral i)
-transDCert (DCertGenesis _) = PV1.DCertGenesis
-transDCert (DCertMir _) = PV1.DCertMir
+transShelleyDCert (ShelleyDCertGenesis _) = PV1.DCertGenesis
+transShelleyDCert (ShelleyDCertMir _) = PV1.DCertMir
 
 transWithdrawals :: Withdrawals c -> Map.Map PV1.StakingCredential Integer
 transWithdrawals (Withdrawals mp) = Map.foldlWithKey' accum Map.empty mp
@@ -446,12 +455,16 @@ exBudgetToExUnits (PV1.ExBudget (PV1.ExCPU steps) (PV1.ExMemory memory)) =
 -- ===================================
 -- translate Script Purpose
 
-transScriptPurpose :: ScriptPurpose c -> PV1.ScriptPurpose
+transScriptPurpose ::
+  EraPlutusContext 'PlutusV1 era =>
+  ScriptPurpose era ->
+  PV1.ScriptPurpose
 transScriptPurpose (Minting policyid) = PV1.Minting (transPolicyID policyid)
 transScriptPurpose (Spending txin) = PV1.Spending (txInfoIn' txin)
 transScriptPurpose (Rewarding (RewardAcnt _network cred)) =
   PV1.Rewarding (PV1.StakingHash (transStakeCred cred))
-transScriptPurpose (Certifying dcert) = PV1.Certifying (transDCert dcert)
+-- TODO Add support for PV3
+transScriptPurpose (Certifying dcert) = PV1.Certifying . unDCertV1 $ transDCert dcert
 
 data VersionedTxInfo
   = TxInfoPV1 PV1.TxInfo
@@ -486,7 +499,7 @@ class ExtendedUTxO era where
   getDatum ::
     Tx era ->
     UTxO era ->
-    ScriptPurpose (EraCrypto era) ->
+    ScriptPurpose era ->
     Maybe (Data era)
 
 getTxOutDatum :: AlonzoEraTxOut era => TxOut era -> Datum era
@@ -497,8 +510,10 @@ alonzoTxInfo ::
   forall era.
   ( EraTx era
   , AlonzoEraTxBody era
+  , DCert era ~ ShelleyDCert era
   , Value era ~ MaryValue (EraCrypto era)
   , TxWits era ~ AlonzoTxWits era
+  , EraPlutusContext 'PlutusV1 era
   ) =>
   PParams era ->
   Language ->
@@ -523,7 +538,7 @@ alonzoTxInfo pp lang ei sysS utxo tx = do
           , PV1.txInfoOutputs = mapMaybe txInfoOut (foldr (:) [] txOuts)
           , PV1.txInfoFee = transValue (inject @(MaryValue (EraCrypto era)) fee)
           , PV1.txInfoMint = transMintValue (txBody ^. mintTxBodyL)
-          , PV1.txInfoDCert = foldr (\c ans -> transDCert c : ans) [] (txBody ^. certsTxBodyG)
+          , PV1.txInfoDCert = toList $ fmap (unDCertV1 . transDCert) (txBody ^. certsTxBodyL)
           , PV1.txInfoWdrl = Map.toList (transWithdrawals (txBody ^. withdrawalsTxBodyL))
           , PV1.txInfoValidRange = timeRange
           , PV1.txInfoSignatories = map transKeyHash (Set.toList (txBody ^. reqSignerHashesTxBodyL))
@@ -545,9 +560,9 @@ alonzoTxInfo pp lang ei sysS utxo tx = do
 -- | valContext pairs transaction data with a script purpose.
 --   See figure 22 of the Alonzo specification.
 valContext ::
-  Era era =>
+  EraPlutusContext 'PlutusV1 era =>
   VersionedTxInfo ->
-  ScriptPurpose (EraCrypto era) ->
+  ScriptPurpose era ->
   Data era
 valContext (TxInfoPV1 txinfo) sp =
   Data (PV1.toData (PV1.ScriptContext txinfo (transScriptPurpose sp)))

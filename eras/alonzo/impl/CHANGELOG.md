@@ -9,6 +9,8 @@
   * `VState`
 * Added support for Plutus V3 in the types and functions that use `Language`.
   (Note that the Alonzo ledger era rules do not allow V3 scripts, however.).
+* Change parametrization of `ScriptPurpose`, `CollectError` and `TransactionScriptFailure`
+  from `c`rypto to `era`
 
 ## 1.1.0.0
 
